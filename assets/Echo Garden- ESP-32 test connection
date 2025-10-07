@@ -1,0 +1,97 @@
+// Echo Garden — p5 + Web Serial
+// Expects lines like: "positive\n", "love\n", "humor\n", "negative\n"
+
+let port, reader, buffer = "";
+let blooms = []; // visuals
+
+const BAUD = 115200;
+const COLORS = {
+  positive: [60, 220, 170],
+  love:     [250, 120, 160],
+  humor:    [255, 210, 90],
+  negative: [150, 170, 255]
+};
+
+async function connectSerial() {
+  try {
+    // Ask the user to select the ESP32 port
+    port = await navigator.serial.requestPort();
+    await port.open({ baudRate: BAUD });
+
+    // Read text lines
+    const textDecoder = new TextDecoderStream();
+    const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+    reader = textDecoder.readable.getReader();
+
+    document.querySelector("#status").textContent = "connected";
+    readLoop();
+  } catch (e) {
+    console.error(e);
+    document.querySelector("#status").textContent = "error: " + e.message;
+  }
+}
+
+async function readLoop() {
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (value) {
+        buffer += value;
+        let lines = buffer.split(/\r?\n/);
+        buffer = lines.pop(); // keep incomplete line
+        for (let line of lines) {
+          const tag = line.trim().toLowerCase();
+          if (!tag) continue;
+          handleTag(tag);
+          console.log("TAG:", tag);
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Read error", e);
+    document.querySelector("#status").textContent = "read error";
+  } finally {
+    reader?.releaseLock();
+  }
+}
+
+function handleTag(tag) {
+  // Drop a bloom with color based on tag
+  const c = COLORS[tag] || [220, 220, 220];
+  blooms.push({
+    x: random(width * 0.1, width * 0.9),
+    y: random(height * 0.2, height * 0.9),
+    r: 8,
+    alpha: 255,
+    col: c
+  });
+}
+
+function setup() {
+  createCanvas(800, 500);
+  noStroke();
+  // UI hookup
+  document.querySelector("#connect").addEventListener("click", async () => {
+    if (!("serial" in navigator)) {
+      alert("Web Serial not supported. Use Chrome/Edge on desktop.");
+      return;
+    }
+    await connectSerial();
+  });
+}
+
+function draw() {
+  // soft night background
+  background(15, 44, 49, 40);
+
+  // draw & fade blooms
+  for (let b of blooms) {
+    fill(b.col[0], b.col[1], b.col[2], b.alpha);
+    circle(b.x, b.y, b.r);
+    b.r += 0.9;          // gentle grow
+    b.alpha -= 2.2;      // fade
+  }
+  // prune faded
+  blooms = blooms.filter(b => b.alpha > 5);
+}
