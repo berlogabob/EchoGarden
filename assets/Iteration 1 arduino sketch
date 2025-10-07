@@ -1,0 +1,28 @@
+// 🌿 Echo Garden Button Code (ESP32)
+// Button cycles through mood tags over Serial
+// Wiring: one leg of button to GND, other to GPIO13
+
+const int BTN = 13;  // safer pin for ESP32
+const char* TAGS[] = {"positive", "love", "humor", "negative"};
+int idx = 0;
+int last = HIGH;
+
+void setup() {
+  pinMode(BTN, INPUT_PULLUP);   // use internal pull-up resistor
+  Serial.begin(115200);
+  delay(200);
+  Serial.println("ready 🌱");  // confirmation message
+}
+
+void loop() {
+  int cur = digitalRead(BTN);
+
+  // detect a falling edge (button pressed)
+  if (cur == LOW && last == HIGH) {
+    Serial.println(TAGS[idx]);      // send current tag
+    idx = (idx + 1) % 4;            // move to next tag (loop back to start)
+    delay(220);                     // simple debounce
+  }
+
+  last = cur;
+}
