@@ -1,1 +1,275 @@
-put code here
+let input, button;
+let plants = [];
+
+let micButton;
+let recognizing = false;
+let recognition;
+let grainG, vignetteG;
+
+
+
+function setup() {
+  createCanvas(800, 500);
+  background('#0f2c31');
+  // Grain & vignette layers (offscreen)
+  grainG = createGraphics(width, height);
+  grainG.noStroke();
+  for (let i = 0; i < 20000; i++) {
+    grainG.fill(255, random(10));       // faint white specks
+    grainG.rect(random(width), random(height), 1, 1);
+  }
+
+  vignetteG = createGraphics(width, height);
+  vignetteG.noStroke();
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const dx = (x - width/2) / (width/2);
+      const dy = (y - height/2) / (height/2);
+      const d = sqrt(dx*dx + dy*dy);
+      const v = map(constrain(d, 0, 1), 0, 1, 0, 140); // edge darken
+      vignetteG.fill(0, v);
+      vignetteG.rect(x, y, 1, 1);
+    }
+  }
+
+  input = createInput('');
+  input.attribute('placeholder', 'say something…');
+  input.size(500);
+  input.position(20, height + 20);
+
+  button = createButton('Plant');
+  button.position(input.x + input.width + 10, height + 20);
+  button.mousePressed(onPlant);
+
+  noStroke();
+  fill(240);
+  textAlign(CENTER, CENTER);
+  textSize(16);
+  text('Echo Garden — p5.js probe', width/2, 24);
+  
+  
+    // --- Speech button ---
+  micButton = createButton('🎤 Speak');
+  micButton.position(button.x + button.width + 10, height + 20);
+  micButton.mousePressed(toggleMic);
+
+  // --- Set up Web Speech API (Chrome only) ---
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      console.log('Heard:', transcript);
+      const tag = classify(transcript);
+      plants.push(new Plant(tag));
+    };
+
+    recognition.onend = () => {
+      recognizing = false;
+      micButton.html('🎤 Speak');
+    };
+  } else {
+    console.log("SpeechRecognition not supported in this browser.");
+  }
+function toggleMic() {
+  if (!recognition) return;
+  if (recognizing) {
+    recognition.stop();
+    micButton.html('🎤 Speak');
+  } else {
+    recognition.start();
+    recognizing = true;
+    micButton.html('🛑 Listening…');
+  }
+}
+
+}
+
+
+
+function draw() {
+  background('#0f2c31'); // clear and redraw
+  for (let p of plants) {
+    p.update();
+    p.render();
+image(grainG, 0, 0);
+push();
+blendMode(MULTIPLY);
+image(vignetteG, 0, 0);
+pop();
+
+
+  }
+}
+
+function onPlant() {
+  const t = input.value().trim();
+  if (!t) return;
+  const tag = classify(t);
+  plants.push(new Plant(tag));
+  input.value('');
+}
+
+// --- classify by simple keywords ---
+function classify(t) {
+  const lower = t.toLowerCase();
+
+  // hard keywords first
+  if (lower.includes('love') || lower.includes('heart') || lower.includes('kiss')) return 'love';
+  if (lower.includes('haha') || lower.includes('lol') || lower.includes('funny'))  return 'humor';
+  if (lower.includes('sad')  || lower.includes('tired') || lower.includes('angry')) return 'negative';
+
+  // weighted fallback (sum = 1.0)
+  const weights = { positive: 0.45, love: 0.2, humor: 0.25, negative: 0.10 };
+  const r = random();
+  let acc = 0;
+  for (const [tag, w] of Object.entries(weights)) {
+    acc += w;
+    if (r <= acc) return tag;
+  }
+  return 'positive';
+}
+
+// --- Plant object ---
+class Plant {
+  constructor(tag) {
+    this.tag = tag;
+    this.x = random(50, width - 50);
+    this.y = random(100, height - 50);
+    this.age = 0; // growth progress
+    this.color = this.pickColor(tag);
+    this.baseScale = random(0.8, 1.6);     // whole-plant size
+    this.cellSize  = floor(random(4, 9));  // “pixel” size in px (4–8)
+
+    this.cells = [];
+    this.buildCells();
+  }
+  
+   buildCells() {
+    const s = 52 * this.baseScale; // span scales with plant size
+    for (let y = -s; y <= s; y += this.cellSize) {
+      for (let x = -s; x <= s; x += this.cellSize) {
+        if (this.pointInSilhouette(x, y)) this.cells.push({x, y});
+      }
+    }
+    shuffle(this.cells, true);
+  }
+
+
+    pointInSilhouette(x, y) {
+    switch (this.tag) {
+      case 'love': {
+        // implicit heart equation (scaled down)
+        let X = x/3.2, Y = -y/3.2;
+        // reverse of drawHeart parametric; use a simple heart field
+        const a = pow(X*X + Y*Y - 1, 3) - X*X*Y*Y*Y;
+        return a <= 0;
+      }
+      case 'humor': { // mushroom cap + stem
+        const inStem = (abs(x) < 10 && y > -2 && y < 22);
+        const inCap  = (pow(x/20,2) + pow((y+10)/10,2) <= 1);
+        return inStem || inCap;
+      }
+      case 'negative': { // spiky weed: hex star region
+        const r = sqrt(x*x + y*y);
+        return r < 22 + 6 * sin(6 * atan2(y, x));
+      }
+      default: { // flower: circle + petals ring
+        const r = sqrt(x*x + y*y);
+        return r < 12 || (r > 10 && r < 22);
+      }
+    }
+  }
+
+  
+  
+  pickColor(tag) {
+    switch (tag) {
+      case 'love':     return color(255, 100, 150);
+      case 'humor':    return color(240, 220, 120);
+      case 'negative': return color(120, 200, 120);
+      default:         return color(200, 240, 255);
+    }
+  }
+
+  update() {
+    // simple growth over time
+    this.age = min(this.age + 0.02, 1);
+  }
+
+        render() {
+    push();
+    translate(this.x, this.y);
+    scale(this.baseScale); // NEW
+
+    // …then your existing block-reveal drawing…
+    const steps = floor(this.age * 10);
+    const revealCount = floor(map(steps, 0, 10, 0, this.cells.length));
+
+    stroke(0, 30);
+    strokeWeight(2.5);
+    fill(this.color);
+    this.drawCrispSilhouette();
+    noStroke();
+
+    fill(red(this.color), green(this.color), blue(this.color), 220);
+    for (let i = 0; i < revealCount; i++) {
+      const c = this.cells[i];
+      rect(c.x, c.y, this.cellSize, this.cellSize, 1);
+    }
+    pop();
+  }
+
+  drawCrispSilhouette() {
+    push();
+    noStroke();
+    fill(this.color);
+    switch (this.tag) {
+      case 'love':     this.drawHeart();    break;
+      case 'humor':    this.drawMushroom(); break;
+      case 'negative': this.drawWeed();     break;
+      default:         this.drawFlower();   break;
+    }
+    pop();
+  }
+
+
+  drawHeart() {
+    beginShape();
+    for (let a = 0; a < TWO_PI; a += 0.05) {
+      let x = 16 * pow(sin(a), 3);
+      let y = - (13 * cos(a) - 5 * cos(2*a) - 2 * cos(3*a) - cos(4*a));
+      vertex(x, y);
+    }
+    endShape(CLOSE);
+  }
+
+  drawMushroom() {
+    rect(-10, 0, 20, 25, 4);          // stem
+    ellipse(0, -10, 40, 20);          // cap
+  }
+
+  drawWeed() {
+    for (let i = 0; i < 6; i++) {
+      push();
+      rotate((i / 6) * TWO_PI);
+      rect(0, 0, 3, 25);
+      pop();
+    }
+  }
+
+  drawFlower() {
+    for (let i = 0; i < 8; i++) {
+      push();
+      rotate((i / 8) * TWO_PI);
+      ellipse(10, 0, 12, 18);
+      pop();
+    }
+    ellipse(0, 0, 10, 10);
+  }
+  
+}
