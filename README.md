@@ -11,7 +11,7 @@ Show first prototype:
 - document describing how everything is working as it is
 	- Nadine: shares current set up. find links to real documentation. Nadine Put in google doc.
 	- tinkercad- make a simulation of the setup so that we can explain it.  
-	- introduce the snipit of the code. prepare to answer. 
+	- introduce the snippet of the code. prepare to answer. 
 	  
 	  
 2nd iteration:
