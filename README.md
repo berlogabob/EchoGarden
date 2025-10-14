@@ -1,30 +1,25 @@
 # EchoGarden
 
+Live, participatory “text garden.” Visitors’ words become the image. A physical button (ESP32) grows the garden through silhouettes; a second ESP32 streams a room value to Firebase that makes the garden breathe.
 
-use github pages for presentation.
-gohugo.io
+## Demo
+- Live site: https://<username>.github.io/<repo>/
+- Short video/screencap: (link)
 
+## Concept
+- Letters form the garden. We draw a character grid only where a mask image is bright.
+- New lines are “spotlighted” once, then dissolve into the mosaic.
+- A button advances the garden silhouette (crossfade). A room value modulates density/scale.
 
+## Tech Stack
+- p5.js (rendering), ml5.js (sentiment, optional), Firebase Realtime Database, ESP32 (USB + Wi-Fi), Web Serial API.
 
-1st part of presentation
-Show first prototype:
-- document describing how everything is working as it is
-	- Nadine: shares current set up. find links to real documentation. Nadine Put in google doc.
-	- tinkercad- make a simulation of the setup so that we can explain it.  
-	- introduce the snippet of the code. prepare to answer. 
-	  
-	  
-2nd iteration:
-improvements- connect INMP441 microphone module to ESP32 module. 
-- then ESP to wifi  
-- need to use wifi
-	- create sketch in arduino that reads button statement, through wifi Iot
-- try to connect ML5.js
-- button, buzzer, mic, LED - Andrey
-- then database
+## How it works (quick)
+1. **Mask → Mosaic.** We sample a PNG mask at grid steps. If brightness > threshold, we draw a letter there.
+2. **Text pools.** Lines feed positive / neutral / negative pools; mosaic pulls characters per row (top/middle/bottom).
+3. **Highlight.** Planting a line shows it once (haloed word), then it blends into the pool.
+4. **Controls.**
+   - **ESP32 button** prints `NEXT` over serial → browser switches mask with a soft crossfade.
+   - **Firebase value** (0..1) maps to `reveal` (density) and `zoom` (legibility).
 
-
-- read  Speech as signal i2c protocol
-- send it to Google cloud API Speech-To-Text (STT)
-- store this text at Firebase
-- manipulate text at Firebase? use additional AI?
+## Repository layout
